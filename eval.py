@@ -31,6 +31,7 @@ def main():
     clean_label_p = np.argmax(bd_model.predict(x_test), axis=1)
     class_accu = np.mean(np.equal(clean_label_p, y_test))*100
     print('Classification accuracy:', class_accu)
+    print(x_test.shape)
 
 if __name__ == '__main__':
     main()
