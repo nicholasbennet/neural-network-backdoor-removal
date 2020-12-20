@@ -105,4 +105,4 @@ clean_label_pois = np.argmax(model_for_export.predict(x_pois), axis=1)
 class_accu_pois = np.mean(np.equal(clean_label_pois, y_pois))*100
 print('Classification accuracy for poisoned dataset pruned model:', class_accu_pois)
 
-model_for_export.save("./models/pruned_multi_trigger_multi_target_bd_net.h5")
+model_for_export.save("./models/pruned_multi_trigger_multi_target_bd_net_temp.h5")
