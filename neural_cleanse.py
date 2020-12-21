@@ -1,6 +1,6 @@
 import os
 import time
-%tensorflow_version 1.x
+#%tensorflow_version 1.x
 import numpy as np
 import random
 #from tensorflow import set_random_seed
@@ -23,7 +23,7 @@ import utils_backdoor
 DEVICE = '0'  # specify which GPU to use
 
 DATA_DIR = 'data1'  # data folder
-DATA_FILE = 'clean_validation_data.h5'  # dataset file
+DATA_FILE = 'sunglasses_poisoned_data.h5'  # dataset file
 MODEL_DIR = 'models1'  # model directory
 MODEL_FILENAME = 'sunglasses_bd_net.h5'  # model file
 RESULT_DIR = 'results1'  # directory for storing results
@@ -43,7 +43,7 @@ Y_TARGET = 1284  # (optional) infected target label, used for prioritizing label
 INTENSITY_RANGE = 'raw'  # preprocessing method for the task, GTSRB uses raw pixel intensities #normalize later
 
 # parameters for optimization
-BATCH_SIZE = 32  #128  # batch size used for optimization
+BATCH_SIZE = 128  #128  # batch size used for optimization
 LR = 0.1  # learning rate
 STEPS = 1000  # total optimization iterations
 NB_SAMPLE = 1000  # number of samples in each mini batch
@@ -66,6 +66,7 @@ EARLY_STOP_PATIENCE = 5 * PATIENCE  # patience for early stop
 UPSAMPLE_SIZE = 1  # size of the super pixel
 MASK_SHAPE = np.ceil(np.array(INPUT_SHAPE[0:2], dtype=float) / UPSAMPLE_SIZE)
 MASK_SHAPE = MASK_SHAPE.astype(int)
+print(MASK_SHAPE)
 
 # parameters of the original injected trigger
 # this is NOT used during optimization
