@@ -26,7 +26,7 @@ DATA_DIR = 'data'  # data folder
 DATA_FILE = 'sunglasses_poisoned_data.h5'  # dataset file
 MODEL_DIR = 'models'  # model directory
 MODEL_FILENAME = 'sunglasses_bd_net.h5'  # model file
-RESULT_DIR = 'results1'  # directory for storing results
+RESULT_DIR = 'results'  # directory for storing results
 # image filename template for visualization results
 IMG_FILENAME_TEMPLATE = 'gtsrb_visualize_%s_label_%d.png'
 
