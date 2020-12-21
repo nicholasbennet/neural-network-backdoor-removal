@@ -25,7 +25,7 @@ DEVICE = '0'  # specify which GPU to use
 DATA_DIR = 'data1'  # data folder
 DATA_FILE = 'clean_validation_data.h5'  # dataset file
 MODEL_DIR = 'models1'  # model directory
-MODEL_FILENAME = 'sunglasses_poisoned_data.h5'  # model file
+MODEL_FILENAME = 'sunglasses_bd_net.h5'  # model file
 RESULT_DIR = 'results1'  # directory for storing results
 # image filename template for visualization results
 IMG_FILENAME_TEMPLATE = 'gtsrb_visualize_%s_label_%d.png'
