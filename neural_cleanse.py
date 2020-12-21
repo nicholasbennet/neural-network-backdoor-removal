@@ -7,9 +7,9 @@ import random
 #random.seed(123)
 np.random.seed(123)
 #set_random_seed(123)
-import keras
-from keras.models import load_model
-from keras.preprocessing.image import ImageDataGenerator
+#import keras
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 from visualizer import Visualizer
 
@@ -20,11 +20,11 @@ import utils_backdoor
 #        PARAMETERS          #
 ##############################
 
-DEVICE = '0'  # specify which GPU to use
+DEVICE = '1'  # specify which GPU to use
 
-DATA_DIR = 'data1'  # data folder
+DATA_DIR = 'data'  # data folder
 DATA_FILE = 'sunglasses_poisoned_data.h5'  # dataset file
-MODEL_DIR = 'models1'  # model directory
+MODEL_DIR = 'models'  # model directory
 MODEL_FILENAME = 'sunglasses_bd_net.h5'  # model file
 RESULT_DIR = 'results1'  # directory for storing results
 # image filename template for visualization results
@@ -37,16 +37,16 @@ IMG_COLS = 47
 IMG_COLOR = 3
 INPUT_SHAPE = (IMG_ROWS, IMG_COLS, IMG_COLOR)
 
-NUM_CLASSES =1284  # total number of classes in the model- N+1
-Y_TARGET = 1284  # (optional) infected target label, used for prioritizing label scanning
+NUM_CLASSES = 1283  # total number of classes in the model- N+1
+Y_TARGET = 12  # (optional) infected target label, used for prioritizing label scanning
 
 INTENSITY_RANGE = 'raw'  # preprocessing method for the task, GTSRB uses raw pixel intensities #normalize later
 
 # parameters for optimization
-BATCH_SIZE = 128  #128  # batch size used for optimization
+BATCH_SIZE = 20  #128  # batch size used for optimization
 LR = 0.1  # learning rate
-STEPS = 1000  # total optimization iterations
-NB_SAMPLE = 1000  # number of samples in each mini batch
+STEPS = 100  # total optimization iterations
+NB_SAMPLE = 100  # number of samples in each mini batch
 MINI_BATCH = NB_SAMPLE // BATCH_SIZE  # mini batch size used for early stop
 INIT_COST = 1e-3  # initial weight used for balancing two objectives
 
@@ -167,6 +167,7 @@ def start_analyse():
 
     print('loading dataset')
     X_test, Y_test = load_dataset()
+    X_test = np.transpose(X_test, (0 , 2, 3, 1))
     #data, label = load_dataset()
     # transform numpy arrays into data generator
     test_generator = build_data_loader(X_test,Y_test)

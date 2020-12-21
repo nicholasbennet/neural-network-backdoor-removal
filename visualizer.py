@@ -5,13 +5,13 @@
 # @Link    : http://cs.ucsb.edu/~bolunwang
 
 import numpy as np
-from keras import backend as K
+from tensorflow.keras import backend as K
 
-from keras.losses import categorical_crossentropy
-from keras.metrics import categorical_accuracy
-from keras.optimizers import Adam
-from keras.utils import to_categorical
-from keras.layers import UpSampling2D, Cropping2D
+from tensorflow.keras.losses import categorical_crossentropy
+from tensorflow.keras.metrics import categorical_accuracy
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.layers import UpSampling2D, Cropping2D
 
 import utils_backdoor
 

@@ -1,7 +1,7 @@
 import h5py
 import numpy as np
 import tensorflow as tf
-from keras.preprocessing import image
+from tensorflow.keras.preprocessing import image
 tf.compat.v1.disable_eager_execution()
 def dump_image(x, filename, format):
     img = image.array_to_img(x, scale=False)
