@@ -22,6 +22,7 @@ sess = tf.compat.v1.Session(config = TF_CONFIG_)
 clean_data_filename='data/clean_test_data.h5'
 validation_data_filename = 'data/clean_validation_data.h5'
 model_filename = 'models/anonymous_bd_net.h5'
+repaired_model_filename = "models/anonymous_bd_net_latest_repaired.h5"
 try:
     os.mkdir(os.path.join('models'))
 except:
@@ -32,14 +33,15 @@ try:
 except:
      print("models/trigger_gen already exists")
 
-epochs = 3
+epochs = 4
 target_begin = 0
 
 target_end = 10
 
-filter_size = 8
+filter_size = 16
 
-no_res = 1
+no_res = 2
+success_rate_treshold = 0.80
 
 create_new_triggers = False
 
@@ -92,6 +94,33 @@ def get_gan_layers(gen_x,no_res = 2 , filters=32):
     act_1 = keras.layers.Activation('tanh')(conv_3)
     return act_1
 
+def fine_tune(x_test,y_test,target):
+#training just the new layer
+    bd_base_model = keras.models.load_model(repaired_model_filename)
+    bd_base_model.trainable = False
+    new_output = keras.layers.Dense(1284, activation='softmax',name='output')(bd_base_model.layers[-2].output)
+    bd_model = keras.Model(inputs=bd_base_model.inputs, outputs=new_output)
+    bd_model.compile(
+        optimizer=keras.optimizers.Adadelta(1),
+        loss=bd_model_original.loss,
+        metrics=['accuracy']
+        )
+    bd_model.fit(x_test,y_test,shuffle=True, batch_size=64,epochs=7)
+    
+    #Retrining the whole
+    bd_model.trainable = True
+    
+    bd_model.compile(
+        optimizer=keras.optimizers.Adadelta(1e-4),
+        loss=bd_model_original.loss,
+        metrics=['accuracy']
+        )
+    bd_model.fit(x_test,y_test,shuffle=True, batch_size=64,epochs=2)
+    
+    bd_model.save(repaired_model_filename)
+    bd_model.save("models/anonymous_bd_net_latest_repaired_after_{}.h5")
+    del bd_model
+
 gen_x = keras.Input(shape=(55, 47, 3), name='input')       
 model_gan = keras.models.Model(inputs = gen_x, outputs = get_gan_layers(gen_x,no_res,filter_size))
 model_gan.save("gan_orig.h5")
@@ -104,6 +133,7 @@ x_train = data_preprocess(x_train)
 train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
 train_dataset = train_dataset.shuffle(buffer_size=x_train.shape[0],seed=90).batch(batch_size)
 bd_model_original = keras.models.load_model(model_filename)
+bd_model_original.save(repaired_model_filename)
 bd_model_original.Training = False
 
 
@@ -163,9 +193,7 @@ for target in range(target_begin,target_end):
     
                     
                     loss_value =(a * l_adv) + l_pert
-                    #print(
-                    #    "loss_value:{} l_adv:{} l_pert:{} epoch:{}".format(loss_value, l_adv,l_pert,epoch)
-                    #)
+                    
                     
                 grads = tape.gradient(loss_value, model_gan.trainable_weights)
                 optimizer.apply_gradients(zip(grads, model_gan.trainable_weights))
@@ -203,12 +231,14 @@ for target in range(target_begin,target_end):
                     training=False),axis = 1)
     success_rate = int(np.argwhere(y_valid_pred.numpy()==target).shape[0])/ int(y_valid_pred.shape[0]) 
     print("target {} ;success_rate {}".format(target,success_rate))
-    if(success_rate>0.79):
+    if(success_rate>success_rate_treshold):
          x_test_poisoned = x_valid_10 + logits
          x_test_poisoned =  x_test_poisoned.numpy()[np.argwhere(y_valid_pred.numpy()==target).flatten(),:]
          pois_file.create_dataset("pois_{}".format(target), data =x_test_poisoned )
-    
-    
+         x_test = np.vstack((x_train, x_test_poisoned))
+         y_test = np.hstack((y_train, np.zeros(x_test_poisoned.shape[0])+1283))
+         fine_tune(x_test,y_test,target)
+         
     del model_gan
      
 
@@ -220,29 +250,6 @@ for data in list(pois_file.values()):
 x_test_poisoned = np.vstack(x_test_poisoned)
 x_test = np.vstack((x_train, x_test_poisoned))
 y_test = np.hstack((y_train, np.zeros(x_test_poisoned.shape[0])+1283))
+fine_tune(x_test,y_test,target+1)
 
-#training just the new layer
-bd_base_model = keras.models.load_model(model_filename)
-bd_base_model.trainable = False
-new_output = keras.layers.Dense(1284, activation='softmax',name='output')(bd_base_model.layers[-2].output)
-bd_model = keras.Model(inputs=bd_base_model.inputs, outputs=new_output)
-bd_model.compile(
-    optimizer=keras.optimizers.Adadelta(1),
-    loss=bd_model_original.loss,
-    metrics=['accuracy']
-    )
-bd_model.fit(x_test,y_test,shuffle=True, batch_size=64,epochs=10)
-
-#Retrining the whole
-bd_model.trainable = True
-
-bd_model.compile(
-    optimizer=keras.optimizers.Adadelta(1e-4),
-    loss=bd_model_original.loss,
-    metrics=['accuracy']
-    )
-bd_model.fit(x_test,y_test,shuffle=True, batch_size=64,epochs=10)
-
-bd_model.save("models/anonymous_bd_net_latest_repaired.h5")
-del bd_model
 pois_file.close()
