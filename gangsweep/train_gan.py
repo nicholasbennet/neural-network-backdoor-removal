@@ -12,6 +12,7 @@ import numpy as np
 from tensorflow import keras
 from tensorflow.keras import backend as K
 import tensorflow as tf
+import os as os
 
 tf.enable_eager_execution()
 TF_CONFIG_ = tf.compat.v1.ConfigProto()
@@ -21,15 +22,28 @@ sess = tf.compat.v1.Session(config = TF_CONFIG_)
 clean_data_filename='data/clean_test_data.h5'
 validation_data_filename = 'data/clean_validation_data.h5'
 model_filename = 'models/anonymous_bd_net.h5'
+try:
+    os.mkdir(os.path.join('models'))
+except:
+    print("Models already exists")
 
-epochs = 4
+try:
+    os.mkdir(os.path.join('models','trigger_gen'))
+except:
+     print("models/trigger_gen already exists")
+
+epochs = 2
 target_begin = 0
 
-target_end = 10
+target_end = 3
+
+filter_size = 8
+
+no_res = 1
 
 # Prepare the training dataset.
 batch_size = 64
-pois_file = h5py.File("bad_net_poise_data.h5", "w")
+pois_file = h5py.File("bad_net_poise_data.h5", "a")
 def res_block_gen(model, kernal_size, filters, strides):
     
     gen = model
@@ -54,38 +68,36 @@ def data_loader(filepath):
 
     return x_data, y_data
 
-@tf.function
+
 def data_preprocess(x_data):
     return x_data/255
 
-gen_x = keras.Input(shape=(55, 47, 3), name='input')
-    # feature extraction
-conv_1 = keras.layers.Conv2D(32, 9, padding='same', name='conv_1')(gen_x)
-prelu_1 = keras.layers.PReLU(alpha_initializer='zeros', alpha_regularizer=None, alpha_constraint=None, shared_axes=[1,2])(conv_1)
-res = res_block_gen(prelu_1, 3, 32, 1)
-res = res_block_gen(res, 3, 32, 1)
-res = res_block_gen(res, 3, 32, 1)
-res = res_block_gen(res, 3, 32, 1)
 
+def get_gan_layers(gen_x,no_res = 2 , filters=32):
+    #gen_x = keras.Input(shape=(55, 47, 3), name='input')
+        # feature extraction
+    conv_1 = keras.layers.Conv2D(filters, 9, padding='same', name='conv_1')(gen_x)
+    prelu_1 = keras.layers.PReLU(alpha_initializer='zeros', alpha_regularizer=None, alpha_constraint=None, shared_axes=[1,2])(conv_1)
+    res = res_block_gen(prelu_1, 3, filters, 1)
+    for i in range(1,no_res):
+        res = res_block_gen(res, 3, filters, 1)
+    
+    conv_2 = keras.layers.Conv2D(filters = filters, kernel_size = 3, strides = 1, padding = "same")(res)
+    batch_1 = keras.layers.BatchNormalization(momentum = 0.5)(conv_2)
+    model = keras.layers.add([prelu_1, batch_1])
+            
+    conv_3 = keras.layers.Conv2D(filters = 1, kernel_size = 9, strides = 1, padding = "same")(model)
+    act_1 = keras.layers.Activation('tanh')(conv_3)
+    return act_1
 
-
-conv_2 = keras.layers.Conv2D(filters = 32, kernel_size = 3, strides = 1, padding = "same")(res)
-batch_1 = keras.layers.BatchNormalization(momentum = 0.5)(conv_2)
-model = keras.layers.add([prelu_1, batch_1])
-        
-conv_3 = keras.layers.Conv2D(filters = 1, kernel_size = 9, strides = 1, padding = "same")(model)
-act_1 = keras.layers.Activation('tanh')(conv_3)
-       
-model_gan = keras.models.Model(inputs = gen_x, outputs = act_1)
+gen_x = keras.Input(shape=(55, 47, 3), name='input')       
+model_gan = keras.models.Model(inputs = gen_x, outputs = get_gan_layers(gen_x,no_res,filter_size))
 model_gan.save("gan_orig.h5")
 #model_gan.summary()
 
 
 x_train, y_train = data_loader(clean_data_filename)
 x_train = data_preprocess(x_train)
-
-#optimizer = tf.keras.optimizers.Adam(learning_rate=0.0002)
-
 
 train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
 train_dataset = train_dataset.shuffle(buffer_size=x_train.shape[0],seed=90).batch(batch_size)
@@ -115,15 +127,14 @@ for target in range(target_begin,target_end):
                 #Scale between 0 and 1
                 epsilon = 1e-12 
                 logits = tf.div(
-                    tf.subtract(logits, tf.reduce_min(logits)),
-            tf.math.maximum( 
-                    tf.subtract(tf.reduce_max(logits), tf.reduce_min(logits)),epsilon)
-            )
+                            tf.subtract(logits, tf.reduce_min(logits)),
+                            tf.math.maximum( 
+                                tf.subtract(tf.reduce_max(logits), tf.reduce_min(logits)),epsilon)
+                        )
                 
                 #Perturbation Loss
                 l_pert = 0.01*tf.reduce_mean(tf.reduce_sum(tf.norm(logits,axis=(1,2)),axis=1))
                 
-                #l_pert = tf.clip_by_value(l_pert,0,100)
                 y_predict = bd_model_original(
                     tf.clip_by_value(x_batch_train+logits,0,1), 
                     training=False)
@@ -137,7 +148,6 @@ for target in range(target_begin,target_end):
                                                 tf.math.reduce_max(y_predict[:,target+1:],axis=1))
                  
                 l_adv = tf.math.reduce_mean(tf.math.maximum(k_th_pred- target_pred, 0))
-                #print(l_pert.shape)
                 a = 2.0
                 if tf.is_nan(l_adv).numpy():
                     l_adv=0
@@ -148,10 +158,7 @@ for target in range(target_begin,target_end):
                 if epoch > 0 and l_pert > l_adv:
                     a = 0.5
 
-                #if epoch ==0:
-                #    l_pert=0
-                #    a=1
-
+                
                 loss_value =(a * l_adv) + l_pert
                 #print(
                 #    "loss_value:{} l_adv:{} l_pert:{} epoch:{}".format(loss_value, l_adv,l_pert,epoch)
@@ -163,7 +170,7 @@ for target in range(target_begin,target_end):
                 print(
                     "Training loss (for one batch) at step {}: target:{} l_adv:{} l_pert:{} loss:{} ".format(step,target,l_adv,l_pert,loss_value)
                 )
-                print("Seen so far: %s samples" % ((step + 1) * 64))
+                print("Seen so far: %s samples" % ((step + 1) * batch_size))
     
     
     
@@ -203,8 +210,8 @@ for target in range(target_begin,target_end):
          x_test_poisoned =  x_test_poisoned.numpy()[np.argwhere(y_valid_pred.numpy()==target).flatten(),:]
          pois_file.create_dataset("pois_{}".format(target), data =x_test_poisoned )
     
-    #del optimizer
-    #del bd_model
+    del optimizer
+    del model_gan
      
 
 
