@@ -1,5 +1,5 @@
 # Files in data directory
-/data/*
-/log/*
-/__pycache__/*
-/results1/*
+data/
+log/
+__pycache__/
+results/
