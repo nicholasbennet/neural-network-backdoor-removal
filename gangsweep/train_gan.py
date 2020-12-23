@@ -32,18 +32,20 @@ try:
 except:
      print("models/trigger_gen already exists")
 
-epochs = 2
+epochs = 3
 target_begin = 0
 
-target_end = 3
+target_end = 10
 
 filter_size = 8
 
 no_res = 1
 
+create_new_triggers = False
+
 # Prepare the training dataset.
 batch_size = 64
-pois_file = h5py.File("bad_net_poise_data.h5", "a")
+pois_file = h5py.File("bad_net_poise_data.h5", "w")
 def res_block_gen(model, kernal_size, filters, strides):
     
     gen = model
@@ -68,7 +70,7 @@ def data_loader(filepath):
 
     return x_data, y_data
 
-
+@tf.function
 def data_preprocess(x_data):
     return x_data/255
 
@@ -117,68 +119,64 @@ for target in range(target_begin,target_end):
     K.set_session(sess)
     
     #model_gan.set_weights(original_weights)
-    model_gan = keras.models.load_model("gan_orig.h5")
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
-    for epoch in range(epochs):
-        print("\nStart of epoch %d" % (epoch,))
-        for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
-            with tf.GradientTape() as tape:                
-                logits = model_gan(x_batch_train, training=True)  # Logits for this minibatch                    
-                #Scale between 0 and 1
-                epsilon = 1e-12 
-                logits = tf.div(
-                            tf.subtract(logits, tf.reduce_min(logits)),
-                            tf.math.maximum( 
-                                tf.subtract(tf.reduce_max(logits), tf.reduce_min(logits)),epsilon)
-                        )
-                
-                #Perturbation Loss
-                l_pert = 0.01*tf.reduce_mean(tf.reduce_sum(tf.norm(logits,axis=(1,2)),axis=1))
-                
-                y_predict = bd_model_original(
-                    tf.clip_by_value(x_batch_train+logits,0,1), 
-                    training=False)
-                target_pred =  y_predict[:,target]
-                if target == 0 :
-                    k_th_pred = tf.math.reduce_max(y_predict[:,1:],axis=1)
-                if target == 1282 :
-                    k_th_pred = tf.math.reduce_max(y_predict[:,:1282],axis=1)
-                else:
-                    k_th_pred = tf.math.maximum(tf.math.reduce_max(y_predict[:,:target],axis=1),
-                                                tf.math.reduce_max(y_predict[:,target+1:],axis=1))
-                 
-                l_adv = tf.math.reduce_mean(tf.math.maximum(k_th_pred- target_pred, 0))
-                a = 2.0
-                if tf.is_nan(l_adv).numpy():
-                    l_adv=0
-
-                if tf.is_nan(l_pert).numpy():
-                    l_pert=0
-
-                if epoch > 0 and l_pert > l_adv:
-                    a = 0.5
-
-                
-                loss_value =(a * l_adv) + l_pert
-                #print(
-                #    "loss_value:{} l_adv:{} l_pert:{} epoch:{}".format(loss_value, l_adv,l_pert,epoch)
-                #)
-                
-            grads = tape.gradient(loss_value, model_gan.trainable_weights)
-            optimizer.apply_gradients(zip(grads, model_gan.trainable_weights))
-            if step % 50 == 0:
-                print(
-                    "Training loss (for one batch) at step {}: target:{} l_adv:{} l_pert:{} loss:{} ".format(step,target,l_adv,l_pert,loss_value)
-                )
-                print("Seen so far: %s samples" % ((step + 1) * batch_size))
+    if create_new_triggers:
+        model_gan = keras.models.load_model("gan_orig.h5")
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+        for epoch in range(epochs):
+            print("\nStart of epoch %d" % (epoch,))
+            for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
+                with tf.GradientTape() as tape:                
+                    logits = model_gan(x_batch_train, training=True)  # Logits for this minibatch                    
+                    #Scale between 0 and 1
+                    epsilon = 1e-12 
+                    logits = tf.div(
+                                tf.subtract(logits, tf.reduce_min(logits)),
+                                tf.math.maximum( 
+                                    tf.subtract(tf.reduce_max(logits), tf.reduce_min(logits)),epsilon)
+                            )
+                    
+                    #Perturbation Loss
+                    l_pert = 0.01*tf.reduce_mean(tf.reduce_sum(tf.norm(logits,axis=(1,2)),axis=1))
+                    
+                    y_predict = bd_model_original(
+                        tf.clip_by_value(x_batch_train+logits,0,1), 
+                        training=False)
+                    target_pred =  y_predict[:,target]
+                    if target == 0 :
+                        k_th_pred = tf.math.reduce_max(y_predict[:,1:],axis=1)
+                    if target == 1282 :
+                        k_th_pred = tf.math.reduce_max(y_predict[:,:1282],axis=1)
+                    else:
+                        k_th_pred = tf.math.maximum(tf.math.reduce_max(y_predict[:,:target],axis=1),
+                                                    tf.math.reduce_max(y_predict[:,target+1:],axis=1))
+                     
+                    l_adv = tf.math.reduce_mean(tf.math.maximum(k_th_pred- target_pred, 0))
+                    a = 2.0
+                    if tf.is_nan(l_adv).numpy():
+                        l_adv=0
     
+                    if tf.is_nan(l_pert).numpy():
+                        l_pert=0
     
+                    if epoch > 0 and l_pert > l_adv:
+                        a = 0.5
     
-    
-    
-    
-    model_gan.save("models/trigger_gen/trigger_gen_{}.h5".format(target))
-    
+                    
+                    loss_value =(a * l_adv) + l_pert
+                    #print(
+                    #    "loss_value:{} l_adv:{} l_pert:{} epoch:{}".format(loss_value, l_adv,l_pert,epoch)
+                    #)
+                    
+                grads = tape.gradient(loss_value, model_gan.trainable_weights)
+                optimizer.apply_gradients(zip(grads, model_gan.trainable_weights))
+                if step % 50 == 0:
+                    print(
+                        "Training loss (for one batch) at step {}: target:{} l_adv:{} l_pert:{} loss:{} ".format(step,target,l_adv,l_pert,loss_value)
+                    )
+                    print("Seen so far: %s samples" % ((step + 1) * batch_size))
+        
+        model_gan.save("models/trigger_gen/trigger_gen_{}.h5".format(target))
+        del optimizer
     # Calcualte success rate
     
     model_gan = keras.models.load_model("models/trigger_gen/trigger_gen_{}.h5".format(target))
@@ -210,27 +208,41 @@ for target in range(target_begin,target_end):
          x_test_poisoned =  x_test_poisoned.numpy()[np.argwhere(y_valid_pred.numpy()==target).flatten(),:]
          pois_file.create_dataset("pois_{}".format(target), data =x_test_poisoned )
     
-    del optimizer
+    
     del model_gan
      
 
 
 x_test_poisoned = []
+pois_file = h5py.File("bad_net_poise_data.h5", "r")
 for data in list(pois_file.values()):
     x_test_poisoned.append(np.array(data))
 x_test_poisoned = np.vstack(x_test_poisoned)
 x_test = np.vstack((x_train, x_test_poisoned))
 y_test = np.hstack((y_train, np.zeros(x_test_poisoned.shape[0])+1283))
 
-bd_model = keras.models.load_model(model_filename)
-new_output = keras.layers.Dense(1284, activation='softmax',name='output')(bd_model.layers[-2].output)
-bd_model = keras.Model(inputs=bd_model.inputs, outputs=new_output)
+#training just the new layer
+bd_base_model = keras.models.load_model(model_filename)
+bd_base_model.trainable = False
+new_output = keras.layers.Dense(1284, activation='softmax',name='output')(bd_base_model.layers[-2].output)
+bd_model = keras.Model(inputs=bd_base_model.inputs, outputs=new_output)
 bd_model.compile(
-    optimizer=bd_model_original.optimizer,
+    optimizer=keras.optimizers.Adadelta(1),
     loss=bd_model_original.loss,
     metrics=['accuracy']
     )
-bd_model.fit(x_test,y_test,shuffle=True, batch_size=64,epochs=5)
+bd_model.fit(x_test,y_test,shuffle=True, batch_size=64,epochs=10)
+
+#Retrining the whole
+bd_model.trainable = True
+
+bd_model.compile(
+    optimizer=keras.optimizers.Adadelta(1e-4),
+    loss=bd_model_original.loss,
+    metrics=['accuracy']
+    )
+bd_model.fit(x_test,y_test,shuffle=True, batch_size=64,epochs=10)
+
 bd_model.save("models/anonymous_bd_net_latest_repaired.h5")
 del bd_model
 pois_file.close()
