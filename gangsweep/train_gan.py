@@ -29,7 +29,7 @@ target_end = 10
 
 # Prepare the training dataset.
 batch_size = 64
-
+pois_file = h5py.File("bad_net_poise_data.h5", "w")
 def res_block_gen(model, kernal_size, filters, strides):
     
     gen = model
@@ -92,10 +92,7 @@ train_dataset = train_dataset.shuffle(buffer_size=x_train.shape[0],seed=90).batc
 bd_model_original = keras.models.load_model(model_filename)
 bd_model_original.Training = False
 
-bd_model = keras.models.load_model(model_filename)
-new_output = keras.layers.Dense(1284, activation='softmax',name='output')(bd_model.layers[-2].output)
-bd_model = keras.Model(inputs=bd_model.inputs, outputs=new_output)
-bd_model.save("models/anonymous_bd_net_latest_repaired.h5")
+
 x_valid, y_valid = data_loader(validation_data_filename)
     
 x_valid = data_preprocess(x_valid)
@@ -106,7 +103,7 @@ for target in range(target_begin,target_end):
     sess.close()
     sess = tf.compat.v1.Session(config = TF_CONFIG_)
     K.set_session(sess)
-
+    
     #model_gan.set_weights(original_weights)
     model_gan = keras.models.load_model("gan_orig.h5")
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
@@ -177,7 +174,7 @@ for target in range(target_begin,target_end):
     
     # Calcualte success rate
     
-    model_gan = keras.models.load_model("models/trigen_tues_01/trigger_gen_{}.h5".format(target))
+    model_gan = keras.models.load_model("models/trigger_gen/trigger_gen_{}.h5".format(target))
     
     #x_valid, y_valid = data_loader(validation_data_filename)
     
@@ -202,29 +199,31 @@ for target in range(target_begin,target_end):
     success_rate = int(np.argwhere(y_valid_pred.numpy()==target).shape[0])/ int(y_valid_pred.shape[0]) 
     print("target {} ;success_rate {}".format(target,success_rate))
     if(success_rate>0.79):
-        def refine(x_valid_10,y_valid_10,logits,y_valid_pred,target):
-            x_test_poisoned = x_valid_10 + logits
-            x_test_poisoned =  x_test_poisoned.numpy()[np.argwhere(y_valid_pred.numpy()==target).flatten(),:]
-            x_test = np.vstack((x_train, x_test_poisoned))
-            y_test = np.hstack((y_train, np.zeros(x_test_poisoned.shape[0])+1283))
-            '''
-            train_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
-            
-            # Shuffle and slice the dataset.
-            train_dataset = train_dataset.shuffle(buffer_size=y_test.shape[0]).batch(batch_size)
-            '''
-            bd_model = keras.models.load_model("models/anonymous_bd_net_latest_repaired.h5")
-            bd_model.compile(
-                optimizer=bd_model_original.optimizer,
-                loss=bd_model_original.loss,
-                metrics=['accuracy']
-                )
-            bd_model.fit(x_test,y_test,shuffle=True, batch_size=64,epochs=5)
-            bd_model.save("models/anonymous_bd_net_latest_repaired.h5")
-            bd_model.save("models/anonymous_bd_net_targ_{}_repaired.h5".format(target))
-            del bd_model
-        refine(x_valid_10,y_valid_10,logits,y_valid_pred,target)
-    del model_gan
+         x_test_poisoned = x_valid_10 + logits
+         x_test_poisoned =  x_test_poisoned.numpy()[np.argwhere(y_valid_pred.numpy()==target).flatten(),:]
+         pois_file.create_dataset("pois_{}".format(target), data =x_test_poisoned )
+    
     #del optimizer
     #del bd_model
      
+
+
+x_test_poisoned = []
+for data in list(pois_file.values()):
+    x_test_poisoned.append(np.array(data))
+x_test_poisoned = np.vstack(x_test_poisoned)
+x_test = np.vstack((x_train, x_test_poisoned))
+y_test = np.hstack((y_train, np.zeros(x_test_poisoned.shape[0])+1283))
+
+bd_model = keras.models.load_model(model_filename)
+new_output = keras.layers.Dense(1284, activation='softmax',name='output')(bd_model.layers[-2].output)
+bd_model = keras.Model(inputs=bd_model.inputs, outputs=new_output)
+bd_model.compile(
+    optimizer=bd_model_original.optimizer,
+    loss=bd_model_original.loss,
+    metrics=['accuracy']
+    )
+bd_model.fit(x_test,y_test,shuffle=True, batch_size=64,epochs=5)
+bd_model.save("models/anonymous_bd_net_latest_repaired.h5")
+del bd_model
+pois_file.close()
