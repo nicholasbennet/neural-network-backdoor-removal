@@ -59,6 +59,16 @@
         └── multi_trigger_multi_target_bd_weights.h5
         └── sunglasses_bd_net.h5
         └── sunglasses_bd_weights.h5
+    ├── triggers
+        └── anonymous.h5
+        └── multitrigger.h5
+        └── sunglasses.h5
+    ├── prune_anonymous.py
+    ├── prune_multitrgger.py
+    ├── prune_sunglasses.py
+    ├── train_trigger_anonymous.py
+    ├── train_trigger_multitrigger.py
+    ├── train_trigger_sunglasses.py
     ├── trigger_detection.py
     └── trigger_generation.py
 ├── retrain_with_pois

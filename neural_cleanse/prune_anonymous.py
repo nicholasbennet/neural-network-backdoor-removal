@@ -2,7 +2,6 @@ import tensorflow as tf
 import h5py
 import numpy as np
 import tensorflow_model_optimization as tfmot
-from copy import copy
 
 #Congiguration for GPU
 TF_CONFIG_ = tf.compat.v1.ConfigProto()
@@ -30,8 +29,6 @@ model_filename = './models/anonymous_bd_net.h5'
 
 model_weight_filename = './models/anonymous_bd_weights.h5'
 
-trigger_filename = './triggers/anonymous.h5'
-
 x_test, y_test = data_loader(clean_test_filename)
 x_test = data_preprocess(x_test)
 
@@ -40,9 +37,6 @@ x_train = data_preprocess(x_train)
 
 x_pois, y_pois = data_loader(poisoned_data_filename)
 x_pois = data_preprocess(x_pois)
-
-x_trig, y_trig = data_loader(trigger_filename)
-x_trig = data_preprocess(x_trig)
 
 bd_model = tf.keras.models.load_model(model_filename)
 
@@ -58,7 +52,7 @@ base_model.load_weights(model_weight_filename) # optional but recommended.
 prune_low_magnitude = tfmot.sparsity.keras.prune_low_magnitude
 
 # Compute end step to finish pruning after 10 epochs.
-batch_size = 1000
+batch_size = 10
 epochs = 10
 validation_split = 0.1 # 10% of training set will be used for validation set. 
 
@@ -91,22 +85,7 @@ model_for_pruning.fit(x_train, y_train,
                   batch_size=batch_size, epochs=epochs, validation_split=validation_split,
                   callbacks=callbacks)
 
-pruned_model = tfmot.sparsity.keras.strip_pruning(model_for_pruning)
-
-pruned_model.summary()
-# Error Start
-model_for_export = copy(pruned_model)
-new_output = tf.keras.layers.Dense(1284, activation='softmax',name='output')(model_for_export.layers[-2].output)
-model_for_export = tf.keras.Model(inputs=bd_model.inputs, outputs=new_output)
-model_for_export.compile(
-  optimizer=pruned_model.optimizer,
-  loss=pruned_model.loss,
-  metrics=['accuracy']
-)
-model_for_export.fit(x_trig, y_trig,epochs=10)
-
-#Error stop
-model_for_export.summary()
+model_for_export = tfmot.sparsity.keras.strip_pruning(model_for_pruning)
 
 clean_label_p = np.argmax(bd_model.predict(x_test), axis=1)
 class_accu = np.mean(np.equal(clean_label_p, y_test))*100
