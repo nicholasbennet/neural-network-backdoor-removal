@@ -51,7 +51,7 @@ except:
 epochs = 4
 target_begin = 0
 
-target_end = 10
+target_end = 1283
 
 filter_size = 16
 
